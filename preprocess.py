@@ -56,5 +56,5 @@ def process(filename, seq_length, n_forward):
 
 
 if __name__ == '__main__':
-    process('price.csv', seq_length=3, n_forward=1)
+    process('price.csv', seq_length=8, n_forward=5)
 

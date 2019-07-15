@@ -8,7 +8,7 @@ def markov_model(features, n_forward):
     """
     :param features: features tensor of shape [BATCH_SIZE, SEQ_LEN, 1]
     :param n_forward: number of forward predictions
-    :return: prediction tensor of shape [BATCH_SIZE, 1, N_FORWARD]
+    :return: prediction tensor of shape [BATCH_SIZE, N_FORWARD]
     """
     _batch_size = tf.shape(features)[0]
     _seq_length = tf.shape(features)[1]
@@ -27,18 +27,25 @@ def markov_model(features, n_forward):
 
 
 def linear_model(features, n_forward):
-    pass
+    """
+    :param features: [BATCH_SIZE, SEQ_LEN]
+    :param n_forward:
+    :return:
+    """
+    _Yr = tf.layers.dense(features, n_forward)  # Yr [BATCH_SIZE, N_FORWARD]
+    return _Yr
 
 
 def compute_errors(features, labels, predictions):
     loss = tf.losses.mean_squared_error(labels, predictions)
     rmse = tf.metrics.root_mean_squared_error(labels, predictions)
-    return loss, rmse
+    mae = tf.metrics.mean_absolute_error(labels, predictions)
+    return loss, rmse, mae
 
 
-def rnn_model(features, labels, mode, params):
+def sequence_model(features, labels, mode, params):
     """
-    :param features: shape [BATCH_SIZE, SEQ_LEN, 1]
+    :param features: a dictionary that contains input tensor of shape [BATCH_SIZE, SEQ_LEN]
     :param labels: shape [BATCH_SIZE, N_FORWARD]
     :param model: model name as string
     :return: the EstimatorSpec
@@ -52,14 +59,14 @@ def rnn_model(features, labels, mode, params):
 
     model_function = model_functions[params['model']]
 
-    n_forward = tf.shape(labels)[1]
+    n_forward = params['n_forward']
 
     predictions = model_function(features[TIME_SERIES_INPUT], n_forward)
 
     # 2. loss function, training/eval ops
     train_op = None
 
-    loss, rmse = compute_errors(features, labels, predictions)
+    loss, rmse, mae = compute_errors(features, labels, predictions)
 
     if mode == tf.estimator.ModeKeys.TRAIN:
         # this is needed for batch normalization, but has no effect otherwise
@@ -73,7 +80,8 @@ def rnn_model(features, labels, mode, params):
 
     # 2c. eval metric
     eval_metric_ops = {
-        "RMSE": rmse
+        "RMSE": rmse,
+        "MAE": mae
     }
 
     # 3. Create predictions
@@ -125,6 +133,9 @@ def read_dataset(filename, mode, seq_length, n_forward, batch_size=512):
 
         dataset = dataset.repeat(num_epochs).batch(batch_size)
         features, labels = dataset.make_one_shot_iterator().get_next()
+
+        # features = [BATCH_SIZE, SEQ_LENGTH]
+        # labels = [BATCH_SIZE, N_FORWARD]
         return features, labels
 
     return _input_fn
@@ -136,12 +147,14 @@ def train_and_evaluate(output_dir, hparams):
 
     # parameters
     seq_length = hparams['seq_length']
+    batch_size = hparams['batch_size']
 
     # training data reader
     get_train = read_dataset(hparams['train_data_path'],
                              tf.estimator.ModeKeys.TRAIN,
                              seq_length,
-                             hparams['n_forward'])
+                             hparams['n_forward'],
+                             batch_size=batch_size)
 
     # evaluation data reader
     get_valid = read_dataset(hparams['eval_data_path'],
@@ -150,7 +163,8 @@ def train_and_evaluate(output_dir, hparams):
                              hparams['n_forward'],
                              batch_size=1000)
 
-    estimator = tf.estimator.Estimator(model_fn=rnn_model,
+    # build estimator
+    estimator = tf.estimator.Estimator(model_fn=sequence_model,
                                        params=hparams,
                                        config=tf.estimator.RunConfig(save_checkpoints_secs=hparams['min_eval_frequency']),
                                        model_dir=output_dir)
@@ -172,32 +186,23 @@ def test_markov():
     # parameters
     seq_length = 4
     n_forward = 2
-    mode = tf.estimator.ModeKeys.TRAIN
-
-    params = {}
-    params['model'] = "markov"
 
     # input and output data
     inputs_ = np.array([1, 2, 3, 4, 5, 6, 7, 8])
-    inputs_ = inputs_.reshape((2, 4, 1))
+    inputs_ = inputs_.reshape((2, 4))
     print(inputs_)
 
-    outputs_ = np.array([100, 101, 102, 103])
-    outputs_ = outputs_.reshape((2, 2, 1))
-    print(outputs_)
-
     # placeholder for inputs and output
-    features = tf.placeholder(tf.float32, [None, seq_length, 1])  # [BATCH_SIZE, SEQ_LEN, 1]
-    labels = tf.placeholder(tf.float32, [None, n_forward, 1])  # [BATCH_SIZE, N_FORWARD, 1]
+    features = tf.placeholder(tf.float32, [None, seq_length])  # [BATCH_SIZE, SEQ_LEN]
 
-    predictions = rnn_model(features, labels, mode, params)
+    predictions = markov_model(features, n_forward)
 
     # add print operation
     a = tf.print(predictions)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        sess.run(a, feed_dict={features: inputs_, labels: outputs_})
+        sess.run(a, feed_dict={features: inputs_})
 
 
 def test_read_dataset():
@@ -205,21 +210,21 @@ def test_read_dataset():
     n_forward = 5
 
     with tf.Session() as sess:
-        fn = read_dataset(filename="../train_{}_{}.csv".format(seq_length, n_forward),
+        fn = read_dataset(filename="../data/train_{}_{}.csv".format(seq_length, n_forward),
                           mode=tf.estimator.ModeKeys.TRAIN,
                           seq_length=seq_length,
                           n_forward=n_forward)
 
         batch_features, batch_labels = fn()
         features, labels = sess.run([batch_features, batch_labels])
-        print("try_out_input_function: features shape = {}".format(features['prices'].shape))
+        print("try_out_input_function: features shape = {}".format(features[TIME_SERIES_INPUT].shape))
         print("try_out_input_function: labels shape = {}".format(labels.shape))
 
 
 def test_train_and_evaluate():
     seq_length = 8
     n_forward = 5
-    model = "markov"
+    model = "linear"
     out_dir_str = "../trained/{}".format(model)
 
     hparams = {}
@@ -229,7 +234,8 @@ def test_train_and_evaluate():
     hparams['seq_length'] = 8
     hparams['n_forward'] = 5
     hparams['learning_rate'] = 0.2
-    hparams['train_steps'] = 100
+    hparams['train_steps'] = 5000
+    hparams['batch_size'] = 512
     hparams['eval_delay_secs'] = 10
     hparams['min_eval_frequency'] = 60
 
@@ -237,4 +243,6 @@ def test_train_and_evaluate():
 
 
 if __name__ == '__main__':
+    #test_markov()
+    #test_read_dataset()
     test_train_and_evaluate()
