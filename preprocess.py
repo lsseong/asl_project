@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from sklearn.model_selection import train_test_split
 
 
 def read_file(filename):
@@ -41,34 +42,19 @@ def process(filename, seq_length, n_forward):
     df = read_file(filename)
     features, labels = shape_data(df, seq_length, n_forward, sliding_step=1)
 
-    # prepare headers
-    features_header = ""
-    for i in range(seq_length):
-        features_header += "s" + str(i) + ","
-
-    labels_header = ""
-    for i in range(n_forward):
-        labels_header += "s" + str(i) + ","
-
-    input_header = ""
-    for i in range(seq_length+n_forward):
-        input_header += "s" + str(i) + ","
-
-    # features file
-    np.savetxt("features_{}_{}.csv".format(seq_length, n_forward),
-               features, delimiter=",", fmt="%.2f", header=features_header, comments='')
-
-    # label file
-    np.savetxt("labels_{}_{}.csv".format(seq_length, n_forward),
-               labels, delimiter=",", fmt="%.2f", header=labels_header, comments='')
+    features_train, features_eval, labels_train, labels_eval = train_test_split(features,
+                                                                                labels,
+                                                                                test_size=0.3,
+                                                                                random_state=42)
 
     # combined features and label as one file
-    np.savetxt("train_{}_{}.csv".format(seq_length, n_forward),
-               np.concatenate((features, labels), axis=1), delimiter=",", fmt="%.2f", header=input_header, comments='')
+    np.savetxt("data/train_{}_{}.csv".format(seq_length, n_forward),
+               np.concatenate((features_train, labels_train), axis=1), delimiter=",", fmt="%.2f")
+
+    np.savetxt("data/eval_{}_{}.csv".format(seq_length, n_forward),
+               np.concatenate((features_eval, labels_eval), axis=1), delimiter=",", fmt="%.2f")
 
 
 if __name__ == '__main__':
-    process('price.csv', seq_length=8, n_forward=5)
-
-
+    process('price.csv', seq_length=3, n_forward=1)
 
