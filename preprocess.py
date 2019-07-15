@@ -41,8 +41,30 @@ def process(filename, seq_length, n_forward):
     df = read_file(filename)
     features, labels = shape_data(df, seq_length, n_forward, sliding_step=1)
 
-    np.savetxt("features_{}_{}.csv".format(seq_length, n_forward), features, delimiter=",", fmt="%.2f")
-    np.savetxt("labels_{}_{}.csv".format(seq_length, n_forward), labels, delimiter=",", fmt="%.2f")
+    # prepare headers
+    features_header = ""
+    for i in range(seq_length):
+        features_header += "s" + str(i) + ","
+
+    labels_header = ""
+    for i in range(n_forward):
+        labels_header += "s" + str(i) + ","
+
+    input_header = ""
+    for i in range(seq_length+n_forward):
+        input_header += "s" + str(i) + ","
+
+    # features file
+    np.savetxt("features_{}_{}.csv".format(seq_length, n_forward),
+               features, delimiter=",", fmt="%.2f", header=features_header, comments='')
+
+    # label file
+    np.savetxt("labels_{}_{}.csv".format(seq_length, n_forward),
+               labels, delimiter=",", fmt="%.2f", header=labels_header, comments='')
+
+    # combined features and label as one file
+    np.savetxt("train_{}_{}.csv".format(seq_length, n_forward),
+               np.concatenate((features, labels), axis=1), delimiter=",", fmt="%.2f", header=input_header, comments='')
 
 
 if __name__ == '__main__':
