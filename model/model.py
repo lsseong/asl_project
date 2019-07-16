@@ -64,25 +64,29 @@ def sequence_model(features, labels, mode, params):
     predictions = model_function(features[TIME_SERIES_INPUT], n_forward)
 
     # 2. loss function, training/eval ops
+    loss = None
     train_op = None
+    eval_metric_ops = None
 
-    loss, rmse, mae = compute_errors(features, labels, predictions)
+    if mode == tf.estimator.ModeKeys.TRAIN or mode == tf.estimator.ModeKeys.EVAL:
+        # only in training and evaluation mode (not during prediction) that we have labels for computing loss metrics
+        loss, rmse, mae = compute_errors(features, labels, predictions)
 
-    if mode == tf.estimator.ModeKeys.TRAIN:
-        # this is needed for batch normalization, but has no effect otherwise
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(update_ops):
-            # 2b. set up training operation
-            train_op = tf.contrib.layers.optimize_loss(loss,
-                                                       tf.train.get_global_step(),
-                                                       learning_rate=params['learning_rate'],
-                                                       optimizer="Adam")
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            # this is needed for batch normalization, but has no effect otherwise
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                # 2b. set up training operation
+                train_op = tf.contrib.layers.optimize_loss(loss,
+                                                           tf.train.get_global_step(),
+                                                           learning_rate=params['learning_rate'],
+                                                           optimizer="Adam")
 
-    # 2c. eval metric
-    eval_metric_ops = {
-        "RMSE": rmse,
-        "MAE": mae
-    }
+        # 2c. eval metric
+        eval_metric_ops = {
+            "RMSE": rmse,
+            "MAE": mae
+        }
 
     # 3. Create predictions
     predictions_dict = {"predicted": predictions}
@@ -187,7 +191,7 @@ def train_and_evaluate(output_dir, hparams):
 
     train_spec = tf.estimator.TrainSpec(input_fn=get_train, max_steps=hparams['train_steps'])
 
-    exporter = tf.estimator.LatestExporter(name = "exporter", serving_input_receiver_fn = serving_input_fn, exports_to_keep = None)
+    exporter = tf.estimator.LatestExporter(name="exporter", serving_input_receiver_fn=serving_input_fn, exports_to_keep=None)
 
     eval_spec = tf.estimator.EvalSpec(input_fn=get_valid,
                                       steps=None,
@@ -238,20 +242,20 @@ def test_read_dataset():
 
 
 def test_train_and_evaluate():
-    seq_length = 8
-    n_forward = 5
+    seq_length = 3
+    n_forward = 1
     model = "linear"
-    out_dir_str = "../trained/{}".format(model)
+    out_dir_str = None
 
     hparams = {}
     hparams['model'] = model
     hparams['train_data_path'] = "../data/train_{}_{}.csv".format(seq_length, n_forward)
     hparams['eval_data_path'] = "../data/eval_{}_{}.csv".format(seq_length, n_forward)
-    hparams['seq_length'] = 8
-    hparams['n_forward'] = 5
+    hparams['seq_length'] = seq_length
+    hparams['n_forward'] = n_forward
     hparams['learning_rate'] = 0.2
-    hparams['train_steps'] = 5000
-    hparams['batch_size'] = 512
+    hparams['train_steps'] = 100
+    hparams['batch_size'] = 1
     hparams['eval_delay_secs'] = 10
     hparams['min_eval_frequency'] = 60
 
