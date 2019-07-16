@@ -28,6 +28,36 @@ def dnn_model(features, n_forward):
     return _Yr
 
 
+def cnn_model(features, n_forward):
+    X = tf.reshape(features, [-1, SEQ_LEN, 1])  # as a 1D "sequence" with only one time-series observation (height)
+
+    c1 = tf.layers.conv1d(X,
+                          filters=SEQ_LEN // 2,
+                          kernel_size=3,
+                          strides=1,
+                          padding='same',
+                          activation=tf.nn.relu)
+
+    p1 = tf.layers.max_pooling1d(c1, pool_size=2, strides=2)
+
+    c2 = tf.layers.conv1d(p1,
+                          filters=SEQ_LEN // 2,
+                          kernel_size=3,
+                          strides=1,
+                          padding='same',
+                          activation=tf.nn.relu)
+
+    p2 = tf.layers.max_pooling1d(c2, pool_size=2, strides=2)
+
+    outlen = p2.shape[1] * p2.shape[2]
+    c2flat = tf.reshape(p2, [-1, outlen])
+    h1 = tf.layers.dense(c2flat, n_forward*2, activation=tf.nn.relu)
+
+    predictions = tf.layers.dense(h1, n_forward, activation=None)  # linear output: regression
+
+    return predictions
+
+
 def compute_errors(features, labels, predictions):
     loss = tf.losses.mean_squared_error(labels, predictions)
     rmse = tf.metrics.root_mean_squared_error(labels, predictions)
@@ -46,7 +76,8 @@ def sequence_model(features, labels, mode, params):
     # 1. select the model
     model_functions = {
         'linear': linear_model,
-        'dnn': dnn_model
+        'dnn': dnn_model,
+        'cnn': cnn_model
     }
 
     model_function = model_functions[params['model']]
