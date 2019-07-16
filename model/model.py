@@ -3,6 +3,13 @@ import numpy as np
 
 TIME_SERIES_INPUT = "prices"
 
+SEQ_LEN = None
+
+
+def init(hparams):
+    global SEQ_LEN
+    SEQ_LEN = hparams['seq_length']
+
 
 def markov_model(features, n_forward):
     """
@@ -148,7 +155,7 @@ def read_dataset(filename, mode, seq_length, n_forward, batch_size=512):
 # Create serving input function to be able to serve predictions later using provided inputs
 def serving_input_fn():
     feature_placeholders = {
-        TIME_SERIES_INPUT: tf.placeholder(tf.float32, [None, 3])
+        TIME_SERIES_INPUT: tf.placeholder(tf.float32, [None, SEQ_LEN])
     }
 
     features = {
@@ -162,6 +169,8 @@ def serving_input_fn():
 
 # Create estimator to train and evaluate
 def train_and_evaluate(output_dir, hparams):
+    init(hparams)
+
     # ensure file writer cache is clear for TensorBoard events file
     tf.summary.FileWriterCache.clear()
 
