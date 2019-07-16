@@ -1,5 +1,4 @@
 import tensorflow as tf
-import numpy as np
 
 TIME_SERIES_INPUT = "prices"
 
@@ -57,7 +56,7 @@ def cnn_model(features, n_forward):
 
 
 def rnn_model(features, n_forward):
-    cell_size = SEQ_LEN // 2  # size of the internal state in each of the cells
+    cell_size = SEQ_LEN  # size of the internal state in each of the cells
 
     # 1. dynamic_rnn needs 3D shape: [BATCH_SIZE, SEQ_LEN, 1]
     x = tf.reshape(features, [-1, SEQ_LEN, 1])
@@ -71,6 +70,22 @@ def rnn_model(features, n_forward):
     # 3. pass rnn output through a dense layer
     h1 = tf.layers.dense(state, SEQ_LEN // 2, activation=tf.nn.relu)
     predictions = tf.layers.dense(h1, n_forward, activation=None)  # (?, N_FORWARD)
+    return predictions
+
+
+def lstm_model(features, n_forward):
+    CELL_SIZE = SEQ_LEN # size of the internal state in each of the cells
+
+    # 1. dynamic_rnn needs 3D shape: [BATCH_SIZE, N_INPUTS, 1]
+    x = tf.reshape(features, [-1, SEQ_LEN, 1])
+
+    # 2. configure the LSTM
+    cell = tf.nn.rnn_cell.BasicLSTMCell(CELL_SIZE)
+    outputs, (cell_state, hidden_state) = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32)
+
+    # 3. pass rnn output through a dense layer
+    h1 = tf.layers.dense(hidden_state, SEQ_LEN // 2, activation=tf.nn.relu)
+    predictions = tf.layers.dense(h1, n_forward, activation=None)  # (?, 1)
     return predictions
 
 
@@ -94,7 +109,8 @@ def sequence_model(features, labels, mode, params):
         'linear': linear_model,
         'dnn': dnn_model,
         'cnn': cnn_model,
-        'rnn': rnn_model
+        'rnn': rnn_model,
+        'lstm': lstm_model
     }
 
     model_function = model_functions[params['model']]
