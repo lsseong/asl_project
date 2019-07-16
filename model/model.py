@@ -56,6 +56,24 @@ def cnn_model(features, n_forward):
     return predictions
 
 
+def rnn_model(features, n_forward):
+    cell_size = SEQ_LEN // 2  # size of the internal state in each of the cells
+
+    # 1. dynamic_rnn needs 3D shape: [BATCH_SIZE, SEQ_LEN, 1]
+    x = tf.reshape(features, [-1, SEQ_LEN, 1])
+
+    # 2. configure the RNN
+    cell = tf.nn.rnn_cell.GRUCell(cell_size)
+
+    # https://stats.stackexchange.com/questions/330176/what-is-the-output-of-a-tf-nn-dynamic-rnn
+    outputs, state = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32)
+
+    # 3. pass rnn output through a dense layer
+    h1 = tf.layers.dense(state, SEQ_LEN // 2, activation=tf.nn.relu)
+    predictions = tf.layers.dense(h1, n_forward, activation=None)  # (?, N_FORWARD)
+    return predictions
+
+
 def compute_errors(features, labels, predictions):
     loss = tf.losses.mean_squared_error(labels, predictions)
     rmse = tf.metrics.root_mean_squared_error(labels, predictions)
@@ -75,7 +93,8 @@ def sequence_model(features, labels, mode, params):
     model_functions = {
         'linear': linear_model,
         'dnn': dnn_model,
-        'cnn': cnn_model
+        'cnn': cnn_model,
+        'rnn': rnn_model
     }
 
     model_function = model_functions[params['model']]
