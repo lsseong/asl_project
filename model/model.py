@@ -11,28 +11,6 @@ def init(hparams):
     SEQ_LEN = hparams['seq_length']
 
 
-def markov_model(features, n_forward):
-    """
-    :param features: features tensor of shape [BATCH_SIZE, SEQ_LEN, 1]
-    :param n_forward: number of forward predictions
-    :return: prediction tensor of shape [BATCH_SIZE, N_FORWARD]
-    """
-    _batch_size = tf.shape(features)[0]
-    _seq_length = tf.shape(features)[1]
-    _total_size = _batch_size * _seq_length
-
-    # take last value from each sequence
-    _last_prices = tf.reshape(features, [_total_size])
-    _last_prices = _last_prices[_seq_length - 1::_seq_length]
-    _last_prices = tf.reshape(_last_prices, [_batch_size, 1])
-
-    # repeat n_forward number of times
-    _prediction = tf.tile(_last_prices, [1, n_forward])
-    _prediction = tf.reshape(_prediction, (_batch_size, n_forward))
-
-    return _prediction
-
-
 def linear_model(features, n_forward):
     """
     :param features: [BATCH_SIZE, SEQ_LEN]
@@ -40,6 +18,13 @@ def linear_model(features, n_forward):
     :return:
     """
     _Yr = tf.layers.dense(features, n_forward)  # Yr [BATCH_SIZE, N_FORWARD]
+    return _Yr
+
+
+def dnn_model(features, n_forward):
+    h1 = tf.layers.dense(features, SEQ_LEN * 2)     # [BATCH_SIZE, SEQ_LENGTH * 2]
+    h2 = tf.layers.dense(h1, SEQ_LEN)               # [BATCH_SIZE, SEQ_LENGTH]
+    _Yr = tf.layers.dense(h2, n_forward)            # Yr [BATCH_SIZE, N_FORWARD]
     return _Yr
 
 
@@ -60,8 +45,8 @@ def sequence_model(features, labels, mode, params):
 
     # 1. select the model
     model_functions = {
-        'markov': markov_model,
-        'linear': linear_model
+        'linear': linear_model,
+        'dnn': dnn_model
     }
 
     model_function = model_functions[params['model']]
@@ -209,29 +194,6 @@ def train_and_evaluate(output_dir, hparams):
                                       throttle_secs=hparams['min_eval_frequency'])
 
     tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
-
-
-def test_markov():
-    # parameters
-    seq_length = 4
-    n_forward = 2
-
-    # input and output data
-    inputs_ = np.array([1, 2, 3, 4, 5, 6, 7, 8])
-    inputs_ = inputs_.reshape((2, 4))
-    print(inputs_)
-
-    # placeholder for inputs and output
-    features = tf.placeholder(tf.float32, [None, seq_length])  # [BATCH_SIZE, SEQ_LEN]
-
-    predictions = markov_model(features, n_forward)
-
-    # add print operation
-    a = tf.print(predictions)
-
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        sess.run(a, feed_dict={features: inputs_})
 
 
 def test_read_dataset():
