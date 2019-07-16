@@ -141,6 +141,22 @@ def read_dataset(filename, mode, seq_length, n_forward, batch_size=512):
     return _input_fn
 
 
+# Create serving input function to be able to serve predictions later using provided inputs
+def serving_input_fn():
+    feature_placeholders = {
+        TIME_SERIES_INPUT: tf.placeholder(tf.float32, [None, 3])
+    }
+
+    features = {
+        key: tf.expand_dims(tensor, -1)
+        for key, tensor in feature_placeholders.items()
+    }
+    features[TIME_SERIES_INPUT] = tf.squeeze(features[TIME_SERIES_INPUT], axis=[2])
+
+    return tf.estimator.export.ServingInputReceiver(features, feature_placeholders)
+
+
+# Create estimator to train and evaluate
 def train_and_evaluate(output_dir, hparams):
     # ensure file writer cache is clear for TensorBoard events file
     tf.summary.FileWriterCache.clear()
@@ -171,7 +187,7 @@ def train_and_evaluate(output_dir, hparams):
 
     train_spec = tf.estimator.TrainSpec(input_fn=get_train, max_steps=hparams['train_steps'])
 
-    exporter = None
+    exporter = tf.estimator.LatestExporter(name = "exporter", serving_input_receiver_fn = serving_input_fn, exports_to_keep = None)
 
     eval_spec = tf.estimator.EvalSpec(input_fn=get_valid,
                                       steps=None,
