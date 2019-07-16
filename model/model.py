@@ -51,9 +51,7 @@ def cnn_model(features, n_forward):
 
     outlen = p2.shape[1] * p2.shape[2]
     c2flat = tf.reshape(p2, [-1, outlen])
-    h1 = tf.layers.dense(c2flat, n_forward*2, activation=tf.nn.relu)
-
-    predictions = tf.layers.dense(h1, n_forward, activation=None)  # linear output: regression
+    predictions = tf.layers.dense(c2flat, n_forward, activation=None)  # linear output: regression
 
     return predictions
 
