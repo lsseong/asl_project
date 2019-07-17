@@ -4,7 +4,7 @@ from model import model
 if __name__ == '__main__':
     seq_length = 8
     n_forward = 5
-    seq_model = "lstm"
+    seq_model = "cnn"
     out_dir_str = "trained/{}".format(seq_model)
 
     hparams = {}
