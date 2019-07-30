@@ -386,10 +386,11 @@ def read_dataset(filename, mode, seq_length, n_forward, batch_size):
             # row is a string tensor containing the contents of one row
             features_list = tf.decode_csv(row, record_defaults=record_defaults)
 
+            # getting a list of tensors
             features = features_list[:seq_length]
             labels = features_list[seq_length:]
 
-            features = tf.stack(features)
+            features = tf.stack(features)       # [SEQ_LENGTH] to shape [SEQ_LENGTH, 1]
             labels = tf.stack(labels)
             return {TIME_SERIES_INPUT: features}, labels
 

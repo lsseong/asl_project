@@ -5,7 +5,7 @@ if __name__ == '__main__':
     seq_length = 8
     n_forward = 5
     seq_model = "cnn"
-    out_dir_str = "trained/{}".format(seq_model)
+    out_dir_str = "c:/tf/trained/{}".format(seq_model)
 
     hparams = {}
     hparams['model'] = seq_model
@@ -19,4 +19,4 @@ if __name__ == '__main__':
     hparams['eval_delay_secs'] = 10
     hparams['min_eval_frequency'] = 60
 
-    model.train_and_evaluate(None, hparams)
+    model.train_and_evaluate(out_dir_str, hparams)
