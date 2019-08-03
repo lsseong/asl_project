@@ -1,11 +1,10 @@
-import tensorflow as tf
-from tensorflow.python.framework import dtypes
-
 """
 This module implements single factor sequence to sequence prediction models.
 
 """
 
+import tensorflow as tf
+from tensorflow.python.framework import dtypes
 
 TIME_SERIES_INPUT = "prices"
 GO_TOKEN = -1.0

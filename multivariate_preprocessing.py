@@ -71,16 +71,17 @@ def shape_data(df, label_column, seq_length, n_forward, sliding_step):
 def prepare(frames, seq_length, n_forward, sliding_step, filename_prefix, num_decimal=2):
     sanity_check(frames)
 
+    num_factor = frames.shape[1]
+
     features, labels = shape_data(frames, 'UOB', seq_length, n_forward, sliding_step)
 
     # combined features and label as one file
     num_batches = features.shape[0]
-    num_features = features.shape[1]
 
     # reshape features into 2D array
     features = np.reshape(features, (num_batches, -1))
 
-    np.savetxt("data/train_multi_{}_{}_{}_{}.csv".format(filename_prefix, num_features, seq_length, n_forward),
+    np.savetxt("data/train_multi_{}_{}_{}_{}.csv".format(filename_prefix, num_factor, seq_length, n_forward),
                np.concatenate((features, labels), axis=1), delimiter=",", fmt="%.{}f".format(num_decimal))
 
 

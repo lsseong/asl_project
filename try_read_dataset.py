@@ -10,7 +10,8 @@ if __name__ == '__main__':
         fn = model.read_dataset(filename="data/train_{}_{}.csv".format(seq_length, n_forward),
                                 mode=tf.estimator.ModeKeys.TRAIN,
                                 seq_length=seq_length,
-                                n_forward=n_forward)
+                                n_forward=n_forward,
+                                batch_size=100)
 
         batch_features, batch_labels = fn()
         features, labels = sess.run([batch_features, batch_labels])
