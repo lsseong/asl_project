@@ -23,3 +23,5 @@ if __name__ == '__main__':
         features, labels = sess.run([batch_features, batch_labels])
         print("try_out_input_function: features shape = {}".format(features['prices'].shape))
         print("try_out_input_function: labels shape = {}".format(labels.shape))
+
+        print(features['prices'][0,:])
