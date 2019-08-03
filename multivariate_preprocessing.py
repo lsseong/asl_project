@@ -15,6 +15,17 @@ def get_column_as(df, input_name, output_name):
     return _df_new
 
 
+def get_column_as_log_return(df, input_name, output_name):
+    _df_new = df[[input_name]]
+    _df_new[output_name] = np.log(_df_new) - np.log(_df_new.shift(1))
+
+    # first row would be nan
+    _df_new.fillna(0, inplace=True)
+
+    del _df_new[input_name]
+    return _df_new
+
+
 def sanity_check(df):
     if df.isna().sum().sum() > 0:
         print(df[df.isna().any(axis=1)])
@@ -57,21 +68,8 @@ def shape_data(df, label_column, seq_length, n_forward, sliding_step):
     return _features, _label
 
 
-if __name__ == '__main__':
-    db_prices = read_file('DB.csv')
-    db_close = get_column_as(db_prices, 'Close', 'DB')
-
-    uob_prices = read_file('UOB.csv')
-    uob_close = get_column_as(uob_prices, 'Close', 'UOB')
-
-    # join
-    frames = inner_join(db_close, uob_close)
-
+def prepare(frames, seq_length, n_forward, sliding_step, filename_prefix, num_decimal=2):
     sanity_check(frames)
-
-    seq_length = 5
-    n_forward = 2
-    sliding_step = 1
 
     features, labels = shape_data(frames, 'UOB', seq_length, n_forward, sliding_step)
 
@@ -82,5 +80,29 @@ if __name__ == '__main__':
     # reshape features into 2D array
     features = np.reshape(features, (num_batches, -1))
 
-    np.savetxt("data/train_multi_{}_{}_{}.csv".format(num_features, seq_length, n_forward),
-               np.concatenate((features, labels), axis=1), delimiter=",", fmt="%.2f")
+    np.savetxt("data/train_multi_{}_{}_{}_{}.csv".format(filename_prefix, num_features, seq_length, n_forward),
+               np.concatenate((features, labels), axis=1), delimiter=",", fmt="%.{}f".format(num_decimal))
+
+
+if __name__ == '__main__':
+    seq_length = 5
+    n_forward = 2
+    sliding_step = 1
+
+    db_prices = read_file('DB.csv')
+    uob_prices = read_file('UOB.csv')
+
+    # prepare training data using close
+    db_close = get_column_as(db_prices, 'Close', 'DB')
+    uob_close = get_column_as(uob_prices, 'Close', 'UOB')
+    prepare(inner_join(db_close, uob_close), seq_length, n_forward, sliding_step, 'close')
+
+    # prepare training data using adjusted close
+    db_adj_close = get_column_as(db_prices, 'Adj Close', 'DB')
+    uob_adj_close = get_column_as(uob_prices, 'Adj Close', 'UOB')
+    prepare(inner_join(db_adj_close, uob_adj_close), seq_length, n_forward, sliding_step, 'adj_close', num_decimal=6)
+
+    # prepare training data using log returns on adjusted close
+    db_returns = get_column_as_log_return(db_prices, 'Adj Close', 'DB')
+    uob_returns = get_column_as_log_return(uob_prices, 'Adj Close', 'UOB')
+    prepare(inner_join(db_returns, uob_returns), seq_length, n_forward, sliding_step, 'returns', num_decimal=6)

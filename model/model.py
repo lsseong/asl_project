@@ -1,6 +1,12 @@
 import tensorflow as tf
 from tensorflow.python.framework import dtypes
 
+"""
+This module implements single factor sequence to sequence prediction models.
+
+"""
+
+
 TIME_SERIES_INPUT = "prices"
 GO_TOKEN = -1.0
 SEQ_LEN = None
@@ -444,19 +450,20 @@ def train_and_evaluate(output_dir, hparams):
     # parameters
     seq_length = hparams['seq_length']
     batch_size = hparams['batch_size']
+    n_forward = hparams['n_forward']
 
     # training data reader
     get_train = read_dataset(hparams['train_data_path'],
                              tf.estimator.ModeKeys.TRAIN,
                              seq_length,
-                             hparams['n_forward'],
+                             n_forward,
                              batch_size=batch_size)
 
     # evaluation data reader
     get_valid = read_dataset(hparams['eval_data_path'],
                              tf.estimator.ModeKeys.EVAL,
                              seq_length,
-                             hparams['n_forward'],
+                             n_forward,
                              batch_size=batch_size)
 
     # build estimator
