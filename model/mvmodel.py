@@ -18,7 +18,7 @@ def linear_model(features, n_forward):
     """
 
     _X = tf.reshape(features, [-1, SEQ_LEN * N_FACTOR])
-    _Y = tf.layers.dense(_X, n_forward)  # Y [BATCH_SIZE, N_FORWARD]
+    _Y = tf.layers.dense(_X, n_forward, name='output')  # Y [BATCH_SIZE, N_FORWARD]
     return _Y
 
 

@@ -23,7 +23,7 @@ def linear_model(features, n_forward):
     :param mode: running mode (training, validation or inference)
     :return:
     """
-    _Yr = tf.layers.dense(features, n_forward)  # Yr [BATCH_SIZE, N_FORWARD]
+    _Yr = tf.layers.dense(features, n_forward, name='output')  # Yr [BATCH_SIZE, N_FORWARD]
     return _Yr
 
 
