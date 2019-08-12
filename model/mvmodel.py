@@ -3,9 +3,10 @@ This module implements multivariate (multiple factors) sequence to sequence pred
 
 """
 import tensorflow as tf
+from tensorflow.python.framework import dtypes
 
 TIME_SERIES_INPUT = "prices"
-GO_TOKEN = -1.0
+GO_TOKEN = -999.0
 N_FACTOR = None
 SEQ_LEN = None
 
@@ -136,7 +137,203 @@ def build_basic_model(features, labels, mode, params):
 
 
 def build_seq2seq_model(features, labels, mode, params):
-    pass
+    predictions = None # [BATCH_SIZE, SEQ_LENGTH, 1]
+    loss = None
+    train_op = None
+    eval_metric_ops = None
+
+    n_forward = params['n_forward']
+    encoding_dimension = SEQ_LEN // 2
+
+    training_decoder_output, inference_decoder_output = seq2seq_model(features[TIME_SERIES_INPUT],
+                                                                      labels,
+                                                                      n_forward,
+                                                                      encoding_dimension)
+
+    if mode == tf.estimator.ModeKeys.TRAIN or mode == tf.estimator.ModeKeys.EVAL:
+        # Predict using training output
+        predictions = training_decoder_output.rnn_output    # [BATCH_SIZE, N_FORWARD, 1]
+        predictions = tf.squeeze(predictions)               # [BATCH_SIZE, N_FORWARD]
+        loss, rmse, mae = compute_errors(labels, predictions)
+
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            optimizer = tf.train.AdamOptimizer(learning_rate=params['learning_rate'])
+
+            # Apply gradient clipper.
+            gradients = optimizer.compute_gradients(loss)
+            capped_gradients = [(tf.clip_by_value(grad, -5., 5.), var) for grad, var in gradients if grad is not None]
+            train_op = optimizer.apply_gradients(capped_gradients, global_step=tf.train.get_global_step())
+
+        eval_metric_ops = {
+            "RMSE": rmse,
+            "MAE": mae
+        }
+    elif mode == tf.estimator.ModeKeys.PREDICT:
+        # Predict using inference output
+        predictions = inference_decoder_output.rnn_output  # [BATCH_SIZE, N_FORWARD, 1]
+        predictions = tf.squeeze(predictions)  # [BATCH_SIZE, N_FORWARD]
+
+    return predictions, loss, train_op, eval_metric_ops
+
+
+def seq2seq_model(features, labels, n_forward, encoding_dimension):
+
+    # dynamic_rnn needs 3D shape: [BATCH_SIZE, SEQ_LEN, N_FACTOR]
+    x = tf.reshape(features, [-1, SEQ_LEN, N_FACTOR])
+
+    # encoding layer
+    encoder_outputs, encoder_state = encoding_layer(x, encoding_dimension)
+
+    _batch_size = tf.shape(features)[0]
+
+    # decoding layer
+    decoding_dimension = encoding_dimension
+    train_output, infer_output = decoding_layer(labels,
+                                                encoder_state,
+                                                n_forward,
+                                                decoding_dimension,
+                                                _batch_size)
+
+    return train_output, infer_output
+
+
+def encoding_layer(features, encoding_dimension):
+    """
+    :param features: input features [BATCH_SIZE, SEQ_LENGTH, N_FACTOR]
+    :param encoding_dimension:
+    :param keep_prob:
+    :return:
+        outputs [BATCH_SIZE, SEQ_LENGTH, ENCODE_DIMENSION]
+        state [BATCH_SIZE, ENCODE_DIMENSION]
+    """
+    encoder_cell = tf.nn.rnn_cell.GRUCell(encoding_dimension, name="encoder_cell")
+    wrapped_encoder_cell = tf.nn.rnn_cell.DropoutWrapper(encoder_cell, output_keep_prob=0.9)
+    outputs, state = tf.nn.dynamic_rnn(wrapped_encoder_cell, features, dtype=tf.float32)
+    return outputs, state
+
+
+def decoding_layer(decoder_inputs, encoder_state, n_forward, decoding_dimension, batch_size):
+    """
+    :param decoder_inputs: this is the labels used during training mode [BATCH_SIZE, N_FORWARD]
+    :param encoder_state [BATCH_SIZE, ENCODE_DIMENSION]
+    :return: train_output
+    """
+
+    # RNN cells for decoding
+    cell = tf.nn.rnn_cell.GRUCell(decoding_dimension, name="decoder_cell")
+
+    """
+    Decoding model can be thought of two separate processes, training and inference.   
+    The helper instance is the one that differs in training and inference. 
+    During training, we want the inputs to be fed to the decoder, while during inference, 
+    we want the output of the decoder in time-step (t) to be passed as the input to the decoder in time step (t+1).
+
+    Reference: 
+        https://towardsdatascience.com/seq2seq-model-in-tensorflow-ec0c557e560f
+        https://stackoverflow.com/questions/43622778/tensorflow-sequence-to-sequence-model-using-the-seq2seq-api-ver-1-1-and-above
+    """
+
+    # prediction is a float (i.e. the price) at each time step
+    prediction_layer = tf.layers.Dense(units=1)
+
+    train_output = None
+    with tf.variable_scope("decode"):
+        # During PREDICT mode, the decoder_inputs (i.e. labels) is none so we can't have a training model
+        if decoder_inputs is not None:
+            train_output = decoding_layer_train(decoder_inputs,
+                                                encoder_state,
+                                                cell,
+                                                n_forward,
+                                                prediction_layer,
+                                                batch_size)
+
+    # Share weights with training decoder
+    with tf.variable_scope("decode", reuse=tf.AUTO_REUSE):
+        infer_output = decoding_layer_infer(encoder_state, cell, n_forward, prediction_layer, batch_size)
+
+    return train_output, infer_output
+
+
+def decoding_layer_train(decoder_inputs, encoder_state, cell, n_forward, prediction_layer, batch_size):
+    """
+    :param decoder_inputs: also the labels [BATCH_SIZE, N_FORWARD]
+    :param encoder_state: [BATCH_SIZE, ENCODE_DIMENSION]
+    :param cell:
+    :param n_forward:
+    :param prediction_layer:
+    :param batch_size
+    :return:
+    """
+    # wrap with a dropout layer
+    decoder_cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=0.9)
+
+    # append a column of GO_TOKEN
+    go_tokens = tf.fill(tf.shape(decoder_inputs), GO_TOKEN)
+    go_tokens = go_tokens[:, 0]
+    go_tokens = tf.reshape(go_tokens, [-1, 1])
+    expanded_decoder_inputs = tf.concat([go_tokens, decoder_inputs], axis=1)
+
+    # decoder inputs [BATCH_SIZE, N_FORWARD+1, 1]
+    expanded_decoder_inputs = tf.reshape(expanded_decoder_inputs, [-1, n_forward+1, 1])
+
+    # sequence length, ensure same batch length as decoder inputs
+    sequence_length = tf.fill(tf.shape(decoder_inputs), n_forward)[:, 0]
+
+    # Helper for the training process
+    training_helper = tf.contrib.seq2seq.TrainingHelper(inputs=expanded_decoder_inputs,
+                                                        sequence_length=sequence_length)
+
+    decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                              training_helper,
+                                              initial_state=encoder_state,
+                                              output_layer=prediction_layer)
+
+    # unrolling the decoder layer
+    outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder,
+                                                      impute_finished=True,
+                                                      maximum_iterations=n_forward)
+
+    return outputs
+
+
+def decoding_layer_infer(encoder_state, cell, n_forward, prediction_layer, batch_size):
+    """
+    :param encoder_state: [BATCH_SIZE, ENCODE_DIMENSION]
+    :param cell:
+    :param n_forward:
+    :param prediction_layer:
+    :param batch_size:
+    :return:
+    """
+
+    decoder_cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=0.9)
+
+    start_tokens = tf.tile(tf.constant([GO_TOKEN], dtype=tf.float32), [batch_size], name='start_tokens')
+    start_tokens = tf.reshape(start_tokens, [-1, 1])
+
+    # This is an inference helper without embedding. The sample_ids are the
+    # actual output in this case (not dealing with any logits here).
+    # The end_fn is always False because the data is provided by a generator
+    # that will stop once it reaches output_size. This could be
+    # extended to outputs of various size if we append end tokens, and have
+    # the end_fn check if sample_id return True for an end token.
+    inference_helper = tf.contrib.seq2seq.InferenceHelper(
+        sample_fn=lambda outputs: outputs,
+        sample_shape=[1],
+        sample_dtype=dtypes.float32,
+        start_inputs=start_tokens,
+        end_fn=lambda sample_ids: False)
+
+    inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                        inference_helper,
+                                                        encoder_state,
+                                                        prediction_layer)
+
+    inference_decoder_output, _, _ = tf.contrib.seq2seq.dynamic_decode(inference_decoder,
+                                                                       impute_finished=True,
+                                                                       maximum_iterations=n_forward)
+
+    return inference_decoder_output
 
 
 def build_model(features, labels, mode, params):

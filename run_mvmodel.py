@@ -7,7 +7,7 @@ if __name__ == '__main__':
     n_factor = 2
     seq_length = 5
     n_forward = 2
-    seq_model = "linear"
+    seq_model = "seq2seq"
 
     # when running under window, needs to manually create export/exporter sub folder under this output directory
     out_dir_str = "c:/tf/uob/{}".format(seq_model)
@@ -20,9 +20,9 @@ if __name__ == '__main__':
     hparams['seq_length'] = seq_length
     hparams['n_forward'] = n_forward
     hparams['learning_rate'] = 0.2
-    hparams['train_steps'] = 100
-    hparams['batch_size'] = 512
-    hparams['eval_delay_secs'] = 10
-    hparams['min_eval_frequency'] = 60
+    hparams['train_steps'] = 10000
+    hparams['batch_size'] = 10
+    hparams['eval_delay_secs'] = 1
+    hparams['min_eval_frequency'] = 10
 
     mvmodel.train_and_evaluate(out_dir_str, hparams)

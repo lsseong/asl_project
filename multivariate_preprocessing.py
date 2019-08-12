@@ -37,7 +37,9 @@ def outer_join(df1, df2):
 
 
 def inner_join(df1, df2):
-    return pd.merge(df1, df2, left_index=True, right_index=True)
+    _df = pd.merge(df1, df2, left_index=True, right_index=True)
+    _df = _df.dropna()
+    return _df
 
 
 def shape_data(df, label_column, seq_length, n_forward, sliding_step):
@@ -90,20 +92,20 @@ if __name__ == '__main__':
     n_forward = 2
     sliding_step = 1
 
-    db_prices = read_file('DB.csv')
-    uob_prices = read_file('UOB.csv')
+    dbs_prices = read_file('yahoo/DBS.csv')
+    uob_prices = read_file('yahoo/UOB.csv')
 
     # prepare training data using close
-    db_close = get_column_as(db_prices, 'Close', 'DB')
+    db_close = get_column_as(dbs_prices, 'Close', 'DBS')
     uob_close = get_column_as(uob_prices, 'Close', 'UOB')
     prepare(inner_join(db_close, uob_close), seq_length, n_forward, sliding_step, 'close')
 
     # prepare training data using adjusted close
-    db_adj_close = get_column_as(db_prices, 'Adj Close', 'DB')
+    db_adj_close = get_column_as(dbs_prices, 'Adj Close', 'DBS')
     uob_adj_close = get_column_as(uob_prices, 'Adj Close', 'UOB')
     prepare(inner_join(db_adj_close, uob_adj_close), seq_length, n_forward, sliding_step, 'adj_close', num_decimal=6)
 
     # prepare training data using log returns on adjusted close
-    db_returns = get_column_as_log_return(db_prices, 'Adj Close', 'DB')
+    db_returns = get_column_as_log_return(dbs_prices, 'Adj Close', 'DBS')
     uob_returns = get_column_as_log_return(uob_prices, 'Adj Close', 'UOB')
     prepare(inner_join(db_returns, uob_returns), seq_length, n_forward, sliding_step, 'returns', num_decimal=6)

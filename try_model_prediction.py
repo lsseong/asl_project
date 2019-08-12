@@ -1,5 +1,5 @@
 """
-Load a trained model and do prediction
+Load a trained model and do prediction, check accuracy
 
 """
 import tensorflow as tf
@@ -12,7 +12,7 @@ n_forward = 2
 model = "linear"
 num_features = n_factor * seq_length
 
-SAVED_MODEL = "c:/tf/uob/{}/export/exporter/".format(model) + "1564844886"
+SAVED_MODEL = "c:/tf/uob/{}/export/exporter/".format(model) + "1565616086"
 PREDICT_FILE = "data/train_multi_close_{}_{}_{}.csv".format(n_factor, seq_length, n_forward)
 
 # load prediction function
