@@ -46,8 +46,16 @@ def prepare(features, labels, seq_length, sliding_step, num_decimal=2):
     # reshape features into 2D array
     features = np.reshape(features, (num_batches, -1))
 
+    # combine features and labels
+    data = np.concatenate((features, labels), axis=1)
+
+    # remove nan rows
+    data = data[~np.isnan(data).any(axis=1)]
+
     np.savetxt("data/train_multi_seq2ret_{}_{}_1.csv".format(num_factor, seq_length),
-               np.concatenate((features, labels), axis=1), delimiter=",", fmt="%.{}f".format(num_decimal))
+               data,
+               delimiter=",",
+               fmt="%.{}f".format(num_decimal))
 
 
 if __name__ == '__main__':

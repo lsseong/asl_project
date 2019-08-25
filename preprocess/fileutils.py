@@ -4,7 +4,11 @@ from datetime import datetime
 
 
 def read_yahoo_file(filename):
-    to_date = lambda d: datetime.strptime(d, '%Y-%m-%d')
+    return read_csv(filename, '%Y-%m-%d')
+
+
+def read_csv(filename, date_pattern):
+    to_date = lambda d: datetime.strptime(d, date_pattern)
     _df = pd.read_csv(filename, delimiter=",", date_parser=to_date, parse_dates=['Date'], index_col=0)
     return _df
 

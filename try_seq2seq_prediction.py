@@ -1,5 +1,5 @@
 """
-Load a trained model and do prediction, check accuracy
+Load a trained model and do sequence to sequence prediction, check directional accuracy
 
 """
 import tensorflow as tf

@@ -145,6 +145,7 @@ def build_seq2seq_model(features, labels, mode, params):
     n_forward = params['n_forward']
     encoding_dimension = SEQ_LEN // 2
 
+    # build sequence to sequence network
     training_decoder_output, inference_decoder_output = seq2seq_model(features[TIME_SERIES_INPUT],
                                                                       labels,
                                                                       n_forward,
