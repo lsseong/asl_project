@@ -1,6 +1,7 @@
 from preprocess import fileutils
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn import metrics
 
 from sklearn.tree import export_graphviz
@@ -22,6 +23,28 @@ def create_label(row):
         return 1
     else:
         return 2
+
+
+def save_tree_image(tree, filename):
+    dot_data = StringIO()
+    export_graphviz(tree, out_file=dot_data,
+                    filled=True, rounded=True,
+                    special_characters=True, feature_names=feature_cols, class_names=['0', '1', '2'])
+    graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
+    graph.write_png(filename)
+    Image(graph.create_png())
+
+
+def build_decision_tree(_inputs, _labels):
+    _clf = DecisionTreeClassifier(criterion="entropy", max_depth=4)
+    _clf = _clf.fit(_inputs, _labels)
+    save_tree_image(_clf, 'spx/tree.png')
+    return _clf
+
+
+def build_random_forest(_inputs, _labels):
+    _rfc = RandomForestClassifier(n_estimators=10).fit(_inputs, _labels)
+    return _rfc
 
 
 if __name__ == '__main__':
@@ -48,26 +71,17 @@ if __name__ == '__main__':
     # split data into training and test set
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1)
 
-    # create decision tree classifier
-    clf = DecisionTreeClassifier(criterion="entropy", max_depth=4)
+    print("train sample size", X_train.shape, type(X_train))
+    print("test sample size", X_test.shape, type(X_test))
 
-    # train classifier
-    clf = clf.fit(X_train, y_train)
+    # create decision tree classifier
+    clf = build_random_forest(X_train, y_train)
 
     # predict the response for the test dataset
     y_pred = clf.predict(X_test)
 
     # model accuracy
     print("Accuracy:", metrics.accuracy_score(y_test, y_pred))
-
-    # graph decision tree
-    dot_data = StringIO()
-    export_graphviz(clf, out_file=dot_data,
-                    filled=True, rounded=True,
-                    special_characters=True, feature_names=feature_cols, class_names=['0', '1', '2'])
-    graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
-    graph.write_png('spx/tree.png')
-    Image(graph.create_png())
 
     # confusion matrix
     cm = metrics.confusion_matrix(y_test, y_pred)
